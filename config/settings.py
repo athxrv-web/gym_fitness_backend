@@ -1,6 +1,6 @@
 from pathlib import Path
 from datetime import timedelta
-import os
+import os  # <--- Ye zaroori hai Render ke liye
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -35,7 +35,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     "whitenoise.middleware.WhiteNoiseMiddleware",  # <--- YE ADD KIYA HAI (Zaroori)
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
+    'corsheaders.middleware.CorsMiddleware', # CORS ko upar rakha hai
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -87,6 +87,7 @@ USE_TZ = True
 
 # --- STATIC FILES CONFIGURATION (FIXED FOR RENDER) ---
 STATIC_URL = 'static/'
+# Ye line aapki photos mein missing thi 👇
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
