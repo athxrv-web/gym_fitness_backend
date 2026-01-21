@@ -1,19 +1,16 @@
 import os
 import django
-from django.contrib.auth import get_user_model
 
+# Django setup karo
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 django.setup()
 
-User = get_user_model()
+from django.contrib.auth.models import User
 
-# This is YOUR developer account
-USERNAME = "developer"
-PASSWORD = "devpassword123"  # You can change this later!
-EMAIL = "dev@example.com"
-
-if not User.objects.filter(username=USERNAME).exists():
-    print(f"Creating superuser: {USERNAME}")
-    User.objects.create_superuser(USERNAME, EMAIL, PASSWORD)
+# Check karo agar 'admin' pehle se hai ya nahi
+if not User.objects.filter(username='admin').exists():
+    # Agar nahi hai, toh bana do
+    User.objects.create_superuser('admin', '', 'admin123')
+    print("✅ Superuser 'admin' created successfully!")
 else:
-    print("Developer account already exists.")
+    print("ℹ️ Superuser 'admin' already exists.")
