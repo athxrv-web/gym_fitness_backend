@@ -1,124 +1,128 @@
 from django.db import models
+from django.contrib.auth.models import User
+from datetime import date , timedelta
 
-
-# ==================== DIET MODELS ====================
-
-class DietPlan(models.Model):
-    """Diet plans based on user profile"""
-    CATEGORY_CHOICES = [
-        ('vegetarian', 'Vegetarian'),
-        ('non_vegetarian', 'Non-Vegetarian'),
-        ('eggetarian', 'Eggetarian'),
-        ('supplement', 'Supplement'),
-    ]
-    
-    AGE_GROUP_CHOICES = [
-        ('18-36', '18-36 Years'),
-        ('36-60', '36-60 Years'),
-    ]
-    
-    GENDER_CHOICES = [
-        ('male', 'Male'),
-        ('female', 'Female'),
-        ('other', 'Other'),
-    ]
-    
-    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
-    age_group = models.CharField(max_length=10, choices=AGE_GROUP_CHOICES)
-    gender = models.CharField(max_length=10, choices=GENDER_CHOICES)
-    height_min = models.IntegerField(help_text="Height in inches")
-    height_max = models.IntegerField(help_text="Height in inches")
-    weight_min = models.IntegerField(help_text="Weight in kg")
-    weight_max = models.IntegerField(help_text="Weight in kg")
-    
-    title = models.CharField(max_length=200)
-    description = models.TextField(blank=True)
-    
-    total_calories = models.IntegerField()
-    total_protein = models.IntegerField(help_text="in grams")
-    total_carbs = models.IntegerField(help_text="in grams")
-    total_fat = models.IntegerField(help_text="in grams")
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    def str(self):
-        return f"{self.title} - {self.category}"
-
-
-class Meal(models.Model):
-    """Individual meals in a diet plan"""
-    MEAL_TYPE_CHOICES = [
-        ('breakfast', 'Breakfast'),
-        ('lunch', 'Lunch'),
-        ('snack', 'Snack'),
-        ('dinner', 'Dinner'),
-    ]
-    
-    diet_plan = models.ForeignKey(DietPlan, on_delete=models.CASCADE, related_name='meals')
-    meal_type = models.CharField(max_length=20, choices=MEAL_TYPE_CHOICES)
-    name = models.CharField(max_length=200)
-    description = models.TextField()
-    
-    calories = models.IntegerField()
-    protein = models.IntegerField(help_text="in grams")
-    carbs = models.IntegerField(help_text="in grams")
-    fat = models.IntegerField(help_text="in grams")
-    
-    def str(self):
-        return f"{self.diet_plan.title} - {self.meal_type}: {self.name}"
-
-
-class Supplement(models.Model):
-    """Supplement information"""
-    name = models.CharField(max_length=200)
-    description = models.TextField()
-    benefits = models.TextField()
-    
-    def str(self):
-        return self.name
-
+# ============================
+# 1. WORKOUT MODELS
+# ============================
 
 class BodyPart(models.Model):
-    """Body parts for workouts"""
-    BODY_PART_CHOICES = [
-        ('chest', 'Chest'),
-        ('back', 'Back'),
-        ('biceps', 'Biceps'),
-        ('triceps', 'Triceps'),
-        ('shoulders', 'Shoulders'),
-        ('legs', 'Legs'),
-    ]
-    
-    name = models.CharField(max_length=20, choices=BODY_PART_CHOICES, unique=True)
-    description = models.TextField(blank=True)
-    
-    def str(self):
-        return self.get_name_display()
+    name = models.CharField(max_length=50)
+    image = models.ImageField(upload_to='body_parts/', blank=True, null=True)
 
+    def __str__(self):
+        return self.name
 
 class Exercise(models.Model):
-    """Exercises for each body part"""
     body_part = models.ForeignKey(BodyPart, on_delete=models.CASCADE, related_name='exercises')
-    name = models.CharField(max_length=200)
-    target_zone = models.CharField(max_length=100, help_text="e.g., Upper Chest, Long Head")
-    description = models.TextField(blank=True)
+    name = models.CharField(max_length=100)
     
-    def str(self):
-        return f"{self.body_part.name} - {self.target_zone}: {self.name}"
+    # --- NEW FIELDS (For Tutorial Screen) ---
+    target_area = models.CharField(max_length=100, blank=True, null=True, help_text="Eg: Upper Chest, Long Head")
+    video_link = models.URLField(max_length=500, blank=True, null=True, help_text="YouTube/Insta Link")
+    instructions = models.TextField(blank=True, null=True)
+    
+    image = models.ImageField(upload_to='exercises/', blank=True, null=True)
 
+    def __str__(self):
+        return self.name
+
+# ============================
+# 2. DIET MODELS
+# ============================
+
+class DietPlan(models.Model):
+    name = models.CharField(max_length=100)
+    description = models.TextField()
+    gender = models.CharField(max_length=10, choices=[('Male', 'Male'), ('Female', 'Female')])
+    age_group = models.CharField(max_length=20, choices=[('18-36', '18-36'), ('36-60', '36-60')])
+    category = models.CharField(max_length=50, choices=[('Weight Loss', 'Weight Loss'), ('Muscle Gain', 'Muscle Gain')])
+    image = models.ImageField(upload_to='diet_plans/', blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.gender})"
+
+class Meal(models.Model):
+    diet_plan = models.ForeignKey(DietPlan, on_delete=models.CASCADE, related_name='meals')
+    name = models.CharField(max_length=100)
+    time = models.CharField(max_length=50) # Breakfast, Lunch, etc.
+    calories = models.IntegerField()
+    protein = models.FloatField()
+    carbs = models.FloatField()
+    fats = models.FloatField()
+    description = models.TextField()
+
+    def __str__(self):
+        return self.name
+
+class Supplement(models.Model):
+    name = models.CharField(max_length=100)
+    description = models.TextField()
+    usage = models.TextField()
+    image = models.ImageField(upload_to='supplements/', blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
+# ============================
+# 3. TRACKER & USER
+# ============================
 
 class DailyTracker(models.Model):
-    """Track daily attendance, diet, and workout"""
-    date = models.DateField()
-    attendance = models.BooleanField(default=False, help_text="Gym attendance")
-    diet_followed = models.BooleanField(default=False, help_text="Diet plan followed")
-    workout_completed = models.BooleanField(default=False, help_text="Workout completed")
-    notes = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    date = models.DateField(auto_now_add=True)
+    calories_consumed = models.IntegerField(default=0)
+    water_intake = models.FloatField(default=0.0) # In Liters
+    workout_done = models.BooleanField(default=False)
+    sleep_hours = models.FloatField(default=0.0)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.date}"
+
+class UserProfile(models.Model):
+    SLOT_CHOICES = [('Morning', 'Morning'), ('Evening', 'Evening')]
+    STATUS_CHOICES = [('Paid', 'Paid'), ('Due', 'Due')]
+    TYPE_CHOICES = [('Gym User', 'Gym User'), ('Non-User', 'Non-User')]
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    mobile_number = models.CharField(max_length=15, blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
+    user_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='Gym User')
+    time_slot = models.CharField(max_length=10, choices=SLOT_CHOICES, default='Morning')
+    fees_status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='Due')
+    fees_paid_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    fees_paid_date = models.DateField(blank=True, null=True)
+    expiry_date = models.DateField(blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.fees_status}"
+    # fitness/models.py (Add at the bottom)
+
+from datetime import timedelta # <--- Upar check karna ye import hai ya nahi, nahi to add karna
+
+class IOSMember(models.Model):
+    SLOT_CHOICES = [('Morning', 'Morning'), ('Evening', 'Evening')]
+    STATUS_CHOICES = [('Paid', 'Paid'), ('Unpaid', 'Unpaid')]
+
+    name = models.CharField(max_length=100)
+    mobile_number = models.CharField(max_length=15)
+    address = models.TextField(blank=True, null=True)
+    time_slot = models.CharField(max_length=10, choices=SLOT_CHOICES, default='Morning')
     
-    class Meta:
-        ordering = ['-date']
-        unique_together = ['date']
+    # Fees Info
+    fees_status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='Unpaid')
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     
-    def str(self):
-        return f"Tracker - {self.date}"
+    # Dates
+    joining_date = models.DateField(auto_now_add=True) # Jis din entry hui
+    expiry_date = models.DateField(blank=True, null=True) # 30 din baad
+
+    def save(self, *args, **kwargs):
+        # Crazy Logic: Agar expiry date nahi dali, toh khud 30 din jod lo
+        if not self.expiry_date:
+            self.joining_date = date.today()
+            self.expiry_date = self.joining_date + timedelta(days=30)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.name} (iOS)"

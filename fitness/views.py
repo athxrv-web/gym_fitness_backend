@@ -1,103 +1,173 @@
-from rest_framework import viewsets, filters, status
+from django.shortcuts import render
+from rest_framework import viewsets, filters, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import DietPlan, Meal, Supplement, BodyPart, Exercise, DailyTracker
-from .serializers import (
-    DietPlanSerializer, MealSerializer, SupplementSerializer,
-    BodyPartSerializer, ExerciseSerializer, DailyTrackerSerializer
+from rest_framework.permissions import AllowAny
+from django.contrib.auth.models import User
+# --- IMPORTS (Sabse Upar) ---
+from django.db.models import Sum
+from datetime import date, timedelta
+from .models import IOSMember
+
+# --- Models ---
+from .models import (
+    DietPlan, 
+    Meal, 
+    Supplement, 
+    BodyPart, 
+    Exercise, 
+    DailyTracker,
+    UserProfile  # <--- Yahan Sahi Hai
 )
 
+# --- Serializers ---
+from .serializers import (
+    DietPlanSerializer, 
+    MealSerializer, 
+    SupplementSerializer,
+    BodyPartSerializer, 
+    ExerciseSerializer, 
+    DailyTrackerSerializer,
+    RegisterSerializer,
+    UserProfileSerializer
+)
 
-class DietPlanViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for diet plans
-    """
-    queryset = DietPlan.objects.all()
-    serializer_class = DietPlanSerializer
-    filterset_fields = ['category', 'age_group', 'gender']
-    search_fields = ['title', 'description']
+# ============================================
+#  1. AUTHENTICATION & USER MANAGEMENT
+# ============================================
+
+class RegisterView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    permission_classes = (AllowAny,)
+    serializer_class = RegisterSerializer
+
+class UserProfileViewSet(viewsets.ModelViewSet):
+    queryset = UserProfile.objects.all()
+    serializer_class = UserProfileSerializer
     
-    @action(detail=False, methods=['get'])
-    def find_plan(self, request):
-        """Find diet plan based on user input"""
-        category = request.query_params.get('category')
-        age = request.query_params.get('age')
-        gender = request.query_params.get('gender')
-        height = request.query_params.get('height')
-        weight = request.query_params.get('weight')
-        
-        if not all([category, age, gender, height, weight]):
-            return Response(
-                {"error": "Missing parameters"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            age = int(age)
-            height = int(height)
-            weight = int(weight)
-        except ValueError:
-            return Response(
-                {"error": "Invalid number format"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        if 18 <= age <= 36:
-            age_group = '18-36'
-        elif 36 < age <= 60:
-            age_group = '36-60'
-        else:
-            return Response(
-                {"error": "Age must be between 18 and 60"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        plans = DietPlan.objects.filter(
-            category=category,
-            age_group=age_group,
-            gender=gender,
-            height_min__lte=height,
-            height_max__gte=height,
-            weight_min__lte=weight,
-            weight_max__gte=weight
+    # Search & Filter Settings
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['user__username', 'user__first_name', 'mobile_number']
+
+    # Filter 1: Gym User vs Non-User
+    @action(detail=False, methods=['get'], url_path='filter-type')
+    def filter_by_type(self, request):
+        user_type = request.query_params.get('type') # e.g., ?type=Gym User
+        if user_type:
+            users = self.queryset.filter(user_type=user_type)
+            serializer = self.get_serializer(users, many=True)
+            return Response(serializer.data)
+        return Response({"error": "Type parameter missing"}, status=400)
+
+    # Filter 2: Admin Dashboard (Total Money)
+    @action(detail=False, methods=['get'], url_path='admin-dashboard')
+    def admin_dashboard(self, request):
+        today = date.today()
+        current_month = today.month
+        current_year = today.year
+
+        # Total Collection Logic
+        # 2. Admin Dashboard: Total Collection (App + iOS)
+    @action(detail=False, methods=['get'], url_path='admin-dashboard')
+    def admin_dashboard(self, request):
+        today = date.today()
+        current_month = today.month
+        current_year = today.year
+
+        # 1. App Users se kamayi
+        app_collection = UserProfile.objects.filter(
+            fees_paid_date__month=current_month,
+            fees_paid_date__year=current_year
+        ).aggregate(Sum('fees_paid_amount'))['fees_paid_amount__sum'] or 0
+
+        # 2. iOS/Offline Users se kamayi (Naya Feature)
+        ios_collection = IOSMember.objects.filter(
+            joining_date__month=current_month,
+            joining_date__year=current_year
+        ).aggregate(Sum('amount_paid'))['amount_paid__sum'] or 0
+
+        # Total Paisa
+        total_money = app_collection + ios_collection
+
+        # Active Users Count
+        active_app_users = UserProfile.objects.filter(expiry_date__gte=today).count()
+        ios_users = IOSMember.objects.count()
+
+        return Response({
+            "current_month": today.strftime("%B"),
+            "total_collection": total_money,        # Owner khush!
+            "app_users_revenue": app_collection,
+            "ios_users_revenue": ios_collection,
+            "total_active_users": active_app_users + ios_users
+        })
+
+    # Filter 3: Fees Reminder (Expiring Soon)
+    @action(detail=False, methods=['get'], url_path='fees-reminders')
+    def fees_reminders(self, request):
+        today = date.today()
+        warning_date = today + timedelta(days=5)
+
+        due_users = UserProfile.objects.filter(
+            expiry_date__lte=warning_date,
+            fees_status='Paid'
         )
         
-        if not plans.exists():
-            return Response(
-                {"error": "No matching diet plan found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        serializer = self.get_serializer(due_users, many=True)
+        return Response(serializer.data)
+
+# ============================================
+#  2. DIET & WORKOUT FEATURES (Existing)
+# ============================================
+
+class DietPlanViewSet(viewsets.ModelViewSet):
+    queryset = DietPlan.objects.all()
+    serializer_class = DietPlanSerializer
+    
+    @action(detail=False, methods=['get'], url_path='find-plan')
+    def find_plan(self, request):
+        age = request.query_params.get('age')
+        gender = request.query_params.get('gender')
+        category = request.query_params.get('category')
         
+        if not all([age, gender, category]):
+            return Response(
+                {"error": "Please provide age, gender, and category"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        plans = DietPlan.objects.filter(
+            gender__iexact=gender,
+            category__iexact=category,
+            age_group=self._get_age_group(int(age))
+        )
         serializer = self.get_serializer(plans, many=True)
         return Response(serializer.data)
 
+    def _get_age_group(self, age):
+        if 18 <= age <= 36:
+            return '18-36'
+        elif 36 < age <= 60:
+            return '36-60'
+        return '18-36'
 
-class SupplementViewSet(viewsets.ReadOnlyModelViewSet):
-    """API endpoint for supplements"""
+class MealViewSet(viewsets.ModelViewSet):
+    queryset = Meal.objects.all()
+    serializer_class = MealSerializer
+
+class SupplementViewSet(viewsets.ModelViewSet):
     queryset = Supplement.objects.all()
     serializer_class = SupplementSerializer
-    search_fields = ['name', 'description', 'benefits']
 
-
-class BodyPartViewSet(viewsets.ReadOnlyModelViewSet):
-    """API endpoint for body parts"""
+class BodyPartViewSet(viewsets.ModelViewSet):
     queryset = BodyPart.objects.all()
     serializer_class = BodyPartSerializer
-    search_fields = ['name']
 
-
-class ExerciseViewSet(viewsets.ReadOnlyModelViewSet):
-    """API endpoint for exercises"""
+class ExerciseViewSet(viewsets.ModelViewSet):
     queryset = Exercise.objects.all()
     serializer_class = ExerciseSerializer
-    filterset_fields = ['body_part', 'target_zone']
-    search_fields = ['name', 'target_zone', 'description']
-
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['body_part__name']
 
 class DailyTrackerViewSet(viewsets.ModelViewSet):
-    """API endpoint for daily tracker"""
     queryset = DailyTracker.objects.all()
     serializer_class = DailyTrackerSerializer
-    filterset_fields = ['date', 'attendance', 'diet_followed', 'workout_completed']
-    ordering_fields = ['date']
-    ordering = ['-date']
