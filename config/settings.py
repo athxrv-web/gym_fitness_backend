@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
     
     # Third party
     'rest_framework',
@@ -147,3 +148,5 @@ WHATSAPP_API_VERSION = os.environ.get('WHATSAPP_API_VERSION', 'v18.0')
 # Create directories
 os.makedirs(MEDIA_ROOT, exist_ok=True)
 os.makedirs(STATIC_ROOT, exist_ok=True)
+
+CORS_ALLOW_ALL_ORIGINS = True
