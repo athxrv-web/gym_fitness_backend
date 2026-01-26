@@ -10,7 +10,7 @@ from datetime import timedelta
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security
-# settings.py mein ye line daalo:
+
 SECRET_KEY = 'django-insecure-@dmin123-super-secret-key-for-render-deployment'
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
