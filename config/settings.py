@@ -2,18 +2,20 @@
 Django settings for GYM_FITNESS_BACKEND project.
 """
 
-import os
 from pathlib import Path
+import os  # <--- Ye zaroor check karna ki ye line ho
 from datetime import timedelta
 
-# Build paths
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Security
-
+# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-@dmin123-super-secret-key-for-render-deployment'
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
+
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = False
+
+ALLOWED_HOSTS = ['*']
 
 # Application definition
 INSTALLED_APPS = [
