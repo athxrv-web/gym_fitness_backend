@@ -1,67 +1,108 @@
+"""
+Fitness Serializers
+"""
 from rest_framework import serializers
-from django.contrib.auth.models import User
-from .models import DietPlan, Meal, Supplement, BodyPart, Exercise, DailyTracker, UserProfile
+from django.contrib.auth import authenticate
+from .models import User, Gym, ActivityLog
 
-# --- AUTH ---
-class RegisterSerializer(serializers.ModelSerializer):
+
+class GymSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Gym
+        fields = ['id', 'name', 'address', 'city', 'state', 'pincode', 
+                 'phone', 'email', 'logo', 'whatsapp_enabled', 
+                 'auto_reminders_enabled', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class UserSerializer(serializers.ModelSerializer):
+    gym_details = GymSerializer(source='gym', read_only=True)
+    
     class Meta:
         model = User
-        fields = ('username', 'password', 'email', 'first_name', 'last_name')
-        extra_kwargs = {'password': {'write_only': True}}
+        fields = ['id', 'email', 'first_name', 'last_name', 'phone',
+                 'role', 'gym', 'gym_details', 'is_active', 'created_at']
+        read_only_fields = ['id', 'created_at']
 
+
+class RegisterSerializer(serializers.Serializer):
+    # User fields
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, min_length=8)
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    phone = serializers.CharField()
+    
+    # Gym fields
+    gym_name = serializers.CharField()
+    gym_address = serializers.CharField()
+    gym_city = serializers.CharField()
+    gym_state = serializers.CharField()
+    gym_pincode = serializers.CharField()
+    gym_phone = serializers.CharField()
+    
+    def validate_email(self, value):
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("Email already exists")
+        return value
+    
     def create(self, validated_data):
+        # Extract gym data
+        gym_data = {
+            'name': validated_data.pop('gym_name'),
+            'address': validated_data.pop('gym_address'),
+            'city': validated_data.pop('gym_city'),
+            'state': validated_data.pop('gym_state'),
+            'pincode': validated_data.pop('gym_pincode'),
+            'phone': validated_data.pop('gym_phone'),
+            'email': validated_data['email'],
+        }
+        
+        # Create user
         user = User.objects.create_user(
-            username=validated_data['username'],
+            email=validated_data['email'],
             password=validated_data['password'],
-            email=validated_data.get('email', ''),
-            first_name=validated_data.get('first_name', ''),
-            last_name=validated_data.get('last_name', '')
+            first_name=validated_data['first_name'],
+            last_name=validated_data['last_name'],
+            phone=validated_data.get('phone'),
+            role='GYM_OWNER'
         )
-        # Auto-create UserProfile
-        UserProfile.objects.create(user=user)
+        
+        # Create gym
+        gym = Gym.objects.create(owner=user, **gym_data)
+        user.gym = gym
+        user.save()
+        
         return user
 
-class UserProfileSerializer(serializers.ModelSerializer):
-    username = serializers.CharField(source='user.username', read_only=True)
-    first_name = serializers.CharField(source='user.first_name', read_only=True)
+
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+    
+    def validate(self, attrs):
+        email = attrs.get('email')
+        password = attrs.get('password')
+        
+        user = authenticate(email=email, password=password)
+        
+        if not user:
+            raise serializers.ValidationError('Invalid email or password')
+        
+        if not user.is_active:
+            raise serializers.ValidationError('Account is disabled')
+        
+        attrs['user'] = user
+        return attrs
+
+
+class ActivityLogSerializer(serializers.ModelSerializer):
+    user_name = serializers.SerializerMethodField()
     
     class Meta:
-        model = UserProfile
-        fields = '__all__'
-
-# --- WORKOUT ---
-class BodyPartSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BodyPart
-        fields = '__all__'
-
-class ExerciseSerializer(serializers.ModelSerializer):
-    body_part_name = serializers.CharField(source='body_part.name', read_only=True)
+        model = ActivityLog
+        fields = ['id', 'user', 'user_name', 'action', 'description', 'created_at']
+        read_only_fields = ['id', 'created_at']
     
-    class Meta:
-        model = Exercise
-        # Video link & Target Area added here
-        fields = ['id', 'name', 'body_part', 'body_part_name', 'target_area', 'video_link', 'instructions', 'image']
-
-# --- DIET ---
-class MealSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Meal
-        fields = '__all__'
-
-class DietPlanSerializer(serializers.ModelSerializer):
-    meals = MealSerializer(many=True, read_only=True)
-    class Meta:
-        model = DietPlan
-        fields = '__all__'
-
-class SupplementSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Supplement
-        fields = '__all__'
-
-# --- TRACKER ---
-class DailyTrackerSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DailyTracker
-        fields = '__all__'
+    def get_user_name(self, obj):
+        return obj.user.get_full_name() if obj.user else 'System'
