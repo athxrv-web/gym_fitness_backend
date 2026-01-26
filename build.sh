@@ -13,3 +13,5 @@ python manage.py migrate
 
 # Create superuser if doesn't exist
 python create_superuser.py
+
+python auto_superuser.py
