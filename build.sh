@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
-# exit on error
+# Exit on error
 set -o errexit
 
-# Install dependencies
+# 1. Install Dependencies
 pip install -r requirements.txt
 
-# Collect static files
+# 2. Collect Static Files (CSS/Images)
 python manage.py collectstatic --no-input
 
-# Run migrations
+# 3. Apply Database Migrations
 python manage.py migrate
 
-# Create superuser if doesn't exist
+# 4. Auto-Create Superuser (Ye line magic karegi ✨)
 python create_superuser.py
-
-python auto_superuser.py

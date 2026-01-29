@@ -1,12 +1,12 @@
 """
 Payments Models
+Optimized for Data Safety & Receipt Generation
 """
 from django.db import models
 from fitness.models import Gym, User
 from members.models import Member
 import uuid
 from datetime import date
-
 
 class Payment(models.Model):
     """Payment Model"""
@@ -28,12 +28,13 @@ class Payment(models.Model):
     gym = models.ForeignKey(Gym, on_delete=models.CASCADE, related_name='payments')
     member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name='payments')
     
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    # 🛡️ Safety: Default 0.00 to prevent crash on empty values
+    amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default='CASH')
     payment_date = models.DateField(default=date.today)
     
-    # Monthly tracking
-    month = models.CharField(max_length=20, help_text="e.g., 'January 2025'")
+    # Monthly tracking (Optional to prevent crash)
+    month = models.CharField(max_length=20, help_text="e.g., 'January 2025'", blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PAID')
     
     # Transaction details
@@ -65,7 +66,7 @@ class Receipt(models.Model):
     gym = models.ForeignKey(Gym, on_delete=models.CASCADE)
     member = models.ForeignKey(Member, on_delete=models.CASCADE)
     
-    receipt_number = models.CharField(max_length=50, unique=True)
+    receipt_number = models.CharField(max_length=50, unique=True, db_index=True)
     receipt_pdf = models.FileField(upload_to='receipts/', null=True, blank=True)
     
     # WhatsApp delivery
@@ -86,6 +87,7 @@ class Receipt(models.Model):
         """Generate unique receipt number"""
         from datetime import datetime
         today = datetime.now()
+        # Use first 8 chars of UUID to keep it short but unique per gym
         prefix = f"REC-{gym.id.hex[:8].upper()}-{today.strftime('%Y%m%d')}"
         
         # Get last receipt for today
@@ -96,8 +98,11 @@ class Receipt(models.Model):
         
         if last_receipt:
             # Extract sequence number and increment
-            last_seq = int(last_receipt.receipt_number.split('-')[-1])
-            new_seq = last_seq + 1
+            try:
+                last_seq = int(last_receipt.receipt_number.split('-')[-1])
+                new_seq = last_seq + 1
+            except ValueError:
+                new_seq = 1
         else:
             new_seq = 1
         

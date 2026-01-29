@@ -1,5 +1,6 @@
 """
 Payment Utilities - PDF Generation
+Optimized for Standard Fonts (Replaced ₹ with Rs.)
 """
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -9,7 +10,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from django.core.files.base import ContentFile
 from io import BytesIO
-
+from datetime import datetime
 
 def generate_receipt_pdf(receipt):
     """Generate PDF receipt"""
@@ -71,16 +72,20 @@ def generate_receipt_pdf(receipt):
     payment = receipt.payment
     member = receipt.member
     
+    # 🛡️ Safe Month Handling
+    month_display = payment.month if payment.month else "N/A"
+    
     details_data = [
         ['Member Details', ''],
         ['Name:', member.name],
         ['Phone:', member.phone],
         ['', ''],
         ['Payment Details', ''],
-        ['Amount:', f"₹{payment.amount}"],
+        # 🛡️ Changed ₹ to Rs. to prevent PDF Font Error
+        ['Amount:', f"Rs. {payment.amount}"], 
         ['Payment Method:', payment.get_payment_method_display()],
         ['Payment Date:', payment.payment_date.strftime('%d-%b-%Y')],
-        ['Month:', payment.month],
+        ['Month:', month_display],
         ['Status:', payment.get_status_display()],
     ]
     
@@ -102,7 +107,7 @@ def generate_receipt_pdf(receipt):
     
     # Total amount (highlighted)
     total_data = [
-        ['Total Amount Paid:', f"₹{payment.amount}"],
+        ['Total Amount Paid:', f"Rs. {payment.amount}"],
     ]
     
     total_table = Table(total_data, colWidths=[4*inch, 2*inch])
@@ -112,33 +117,25 @@ def generate_receipt_pdf(receipt):
         ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#3498DB')),
         ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
         ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 12),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 12),
-        ('TOPPADDING', (0, 0), (-1, -1), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+        ('PADDING', (0, 0), (-1, -1), 12),
     ]))
     elements.append(total_table)
     elements.append(Spacer(1, 0.5*inch))
     
     # Footer
-    footer_style = ParagraphStyle(
-        'Footer',
-        parent=styles['Normal'],
-        fontSize=9,
-        alignment=TA_CENTER
-    )
     footer_text = Paragraph(
         "<i>This is a computer-generated receipt. Thank you for your payment!</i>",
-        footer_style
+        ParagraphStyle('Footer', parent=styles['Normal'], fontSize=9, alignment=TA_CENTER)
     )
     elements.append(footer_text)
     
     # Build PDF
-    doc.build(elements)
-    
-    # Save to file
-    pdf_content = buffer.getvalue()
-    buffer.close()
-    
-    filename = f"receipt_{receipt.receipt_number}.pdf"
-    return ContentFile(pdf_content, filename)
+    try:
+        doc.build(elements)
+        pdf_content = buffer.getvalue()
+        buffer.close()
+        filename = f"receipt_{receipt.receipt_number}.pdf"
+        return ContentFile(pdf_content, filename)
+    except Exception as e:
+        print(f"PDF Build Error: {e}")
+        return None

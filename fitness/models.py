@@ -1,14 +1,13 @@
 """
 Fitness Models - User, Gym, and Authentication
+Refined for Performance & Security
 """
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 import uuid
 
-
 class UserManager(BaseUserManager):
     """Custom user manager"""
-    
     def create_user(self, email, password=None, **extra_fields):
         if not email:
             raise ValueError('Email is required')
@@ -24,10 +23,8 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault('role', 'ADMIN')
         return self.create_user(email, password, **extra_fields)
 
-
 class User(AbstractUser):
     """Custom User Model"""
-    
     ROLE_CHOICES = [
         ('GYM_OWNER', 'Gym Owner'),
         ('STAFF', 'Staff'),
@@ -35,11 +32,15 @@ class User(AbstractUser):
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    username = None  # Remove username
-    email = models.EmailField(unique=True)
-    phone = models.CharField(max_length=15, blank=True, null=True)
+    username = None 
+    # Indexing added for faster login/search
+    email = models.EmailField(unique=True, db_index=True)
+    phone = models.CharField(max_length=15, blank=True, null=True, db_index=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='STAFF')
-    gym = models.ForeignKey('Gym', on_delete=models.CASCADE, related_name='users', null=True, blank=True)
+    
+    # String reference to avoid Circular Import errors
+    gym = models.ForeignKey('fitness.Gym', on_delete=models.SET_NULL, related_name='users', null=True, blank=True)
+    
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -54,19 +55,16 @@ class User(AbstractUser):
         ordering = ['-created_at']
     
     def __str__(self):
-        return f"{self.get_full_name()} ({self.email})"
-    
-    @property
-    def is_gym_owner(self):
-        return self.role == 'GYM_OWNER'
-
+        return self.email
 
 class Gym(models.Model):
     """Gym Model"""
-    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=200)
-    owner = models.OneToOneField(User, on_delete=models.CASCADE, related_name='owned_gym')
+    
+    # Owner relation
+    owner = models.OneToOneField('fitness.User', on_delete=models.CASCADE, related_name='owned_gym')
+    
     address = models.TextField()
     city = models.CharField(max_length=100)
     state = models.CharField(max_length=100)
@@ -77,11 +75,6 @@ class Gym(models.Model):
     
     # Business details
     gst_number = models.CharField(max_length=15, blank=True, null=True)
-    pan_number = models.CharField(max_length=10, blank=True, null=True)
-    
-    # Subscription
-    subscription_active = models.BooleanField(default=True)
-    subscription_expires_at = models.DateField(null=True, blank=True)
     
     # Settings
     whatsapp_enabled = models.BooleanField(default=True)
@@ -97,10 +90,8 @@ class Gym(models.Model):
     def __str__(self):
         return self.name
 
-
 class ActivityLog(models.Model):
     """Activity Log"""
-    
     ACTION_CHOICES = [
         ('LOGIN', 'Login'),
         ('LOGOUT', 'Logout'),
@@ -121,6 +112,3 @@ class ActivityLog(models.Model):
     class Meta:
         db_table = 'activity_logs'
         ordering = ['-created_at']
-    
-    def __str__(self):
-        return f"{self.action} - {self.created_at}"
