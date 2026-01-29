@@ -15,7 +15,7 @@ class GymAdmin(admin.ModelAdmin):
     # 'subscription_active' hata diya kyunki wo model me nahi hai
     list_display = ['name', 'owner', 'city', 'phone', 'whatsapp_enabled'] 
     list_filter = ['city', 'whatsapp_enabled']
-    search_fields = ['name', 'phone', 'email']
+    search_fields = ['name', 'phone']
 
 @admin.register(ActivityLog)
 class ActivityLogAdmin(admin.ModelAdmin):
